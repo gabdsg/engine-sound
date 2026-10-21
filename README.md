@@ -17,6 +17,8 @@ There are no samples. Every sound is generated in real time by a small DSP engin
     - **iPhone and Android ("Phone sensors")**: the accelerometer is fused with GPS for instant throttle response. If motion access is denied or unavailable, it falls back to GPS alone.
 - **Tuning**: volume, character (stock to open pipes), crackle (overrun and limiter pops), aggression (shift points and throttle sensitivity), km/h or mph.
 - **Tachometer and gear display** that rescale to each engine's redline.
+- **Gauge-only view**: **Gauge only** hides everything except the gauge, for a clean screen while driving. **Show controls** brings the rest back, and the choice is remembered.
+- **Hold to rev**: while the engine runs and the car is stopped, a button under the gauge revs the engine as if in neutral. It disappears as soon as you're moving.
 
 ### Keyboard
 
@@ -28,18 +30,18 @@ There are no samples. Every sound is generated in real time by a small DSP engin
 
 ## Running locally
 
-It's a single static file with no build step or dependencies. Serve the folder with any static server:
+It's a static site with no build step or dependencies. The code is split into ES modules, so it has to be served over HTTP; opening `index.html` straight from disk won't load them. Serve the folder with any static server:
 
 ```sh
 python3 -m http.server 8000
 # then open http://localhost:8000
 ```
 
-Opening `index.html` directly from disk also works in most browsers. Pedals and the demo run work anywhere. **Real-driving mode needs HTTPS**: browsers only expose motion and location to secure pages, so test it on the deployed site. On a desktop, `localhost` counts as secure.
+Pedals and the demo run work anywhere. **Real-driving mode needs HTTPS**: browsers only expose motion and location to secure pages, so test it on the deployed site. On a desktop, `localhost` counts as secure.
 
 ## Using it in a Tesla
 
-1. While parked, open the page in the car's browser, tap **Start engine**, switch to **Car GPS** and tap **Enable GPS**. Allow location when asked.
+1. While parked, open the page in the car's browser, tap **Start engine**, switch to **Car GPS** and tap **Enable GPS**. Allow location when asked. Then tap **Gauge only** if you want a clean screen.
 2. Drive. On cars from about 2022 onward (AMD Ryzen computer), the browser reports the car's own speed, and the readouts show **Speed source: Car's speed**. Older Intel cars report a speed of 0 while moving, so the page detects that and works speed out from GPS positions instead. Expect a lag of two seconds or so in that case.
 3. Keep the page on screen. Location stops while the browser is minimised (for example, behind a full-screen map or the reverse camera), so the engine settles to idle until you come back.
 
@@ -49,7 +51,7 @@ What the car's browser can and can't provide:
 - **Altitude** gives road grade, measured over the last 100–150 m, so climbs load the engine and descents let it run on the overrun.
 - **No accelerator pedal, brake, gear or motor data.** The car doesn't pass these to web pages. Tesla's Fleet Telemetry API has them, but only every 1–10 s through a server, which is too slow for live sound.
 - **The steering-wheel buttons don't reach the page.** They stay with the car's media player.
-- The Tesla browser can keep old copies of a page for a long time. After updating the site, open it with a query string such as `https://gabdsg.com/engine-sound/?v=2` to force a fresh copy.
+- The Tesla browser can keep old copies of a page for a long time. After updating the site, open it with a new query string, such as `https://gabdsg.com/engine-sound/?v=4`, to force a fresh copy. The build number under the gauge shows which version loaded.
 
 ## Using phone sensors
 
@@ -62,9 +64,26 @@ On iPhone the page plays a silent looping audio element so the engine stays audi
 
 ## How it works
 
-Everything is in `index.html`:
+```
+index.html                   markup, plus an import map that versions every file
+css/styles.css
+js/main.js                   app controller: state, controls, gauge-only view, rev button, main loop
+js/audio/dsp.js              EngineDSP, the sound generator
+js/audio/presets.js          engine definitions
+js/audio/output.js           AudioWorklet / ScriptProcessor setup, iPhone silent-switch workaround
+js/sim/car.js                virtual car for pedal mode
+js/sim/drivetrain.js         virtual gearbox
+js/sim/demo.js               demo run keyframes
+js/sensors/gps-speed.js      speed, acceleration and grade from GPS fixes
+js/sensors/live-sensors.js   phone accelerometer fusion, or GPS only
+js/ui/tach.js                tachometer drawing
+js/ui/sensor-panel.js        sensor readouts, alerts and chart
+js/ui/dom.js                 tiny DOM helper
+```
 
-- **`EngineDSP`**: the sound engine, run in an `AudioWorklet` with a `ScriptProcessor` fallback.
+The engine, vehicle and sensor modules don't touch the page, so they can be imported on their own, for example from Node for testing.
+
+- **`EngineDSP`** (`js/audio/dsp.js`): the sound engine, run in an `AudioWorklet` with a `ScriptProcessor` fallback. The worklet loads it from `EngineDSP.toString()`, so it must stay self-contained, with no imports.
   - A virtual crankshaft fires each cylinder at its real angle in the 720° cycle. The cross-plane V8's uneven per-bank firing order is what gives it the burble.
   - Each firing sends an exhaust pulse into a damped waveguide per bank, which models pipe resonance.
   - The result runs through a state-variable "muffler" lowpass that opens with load and revs, then gets intake roar, turbo whistle and blow-off, and soft-clip saturation.
@@ -81,11 +100,13 @@ Everything is in `index.html`:
   - **Everything else:** polls `getCurrentPosition` once at a time, because `watchPosition` has been reported to crash the Tesla browser, and drives from `GpsSpeed` alone.
   - **Throttle:** in both cases it's estimated from acceleration plus rolling resistance, drag and grade. Holding speed counts as light throttle, while braking or rolling downhill counts as lifting off.
 
-Engine presets live in the `PRESETS` array: firing angles, gear ratios, pipe resonance, muffler cutoff and so on. Add or tweak entries there.
+Engine presets live in the `PRESETS` array in `js/audio/presets.js`: firing angles, gear ratios, pipe resonance, muffler cutoff and so on. Add or tweak entries there.
 
 ## Deploying
 
-The site is a static `index.html`, so any static host works.
+The site is plain static files, so any static host works.
+
+**After changing any file, bump the version.** Every CSS and JS URL in `index.html` ends in `?v=N`, and browsers that cache hard (like the Tesla's) only fetch new files when N changes. Replace every `?v=4` with `?v=5` (and so on) in `index.html`, for example with `sed -i 's/?v=4/?v=5/g' index.html` (on macOS, use `sed -i ''`).
 
 ### GitHub Pages
 
