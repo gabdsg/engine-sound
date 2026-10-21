@@ -611,6 +611,7 @@ class PhoneSensors {
     if (typeof DeviceMotionEvent === 'undefined') { this.permission = 'No motion API'; this.err = 'This browser doesn’t expose motion sensors.'; }
     else if (typeof DeviceMotionEvent.requestPermission === 'function') {
       try {
+        this.permission = 'Asking';
         const r = await DeviceMotionEvent.requestPermission();
         this.permission = r === 'granted' ? 'Granted' : 'Denied';
         if (r !== 'granted') this.err = 'Motion access was denied. Close the tab, open the page again and tap Allow when asked.';
@@ -625,7 +626,7 @@ class PhoneSensors {
   stop() {
     window.removeEventListener('devicemotion', this.onMotion);
     if (this.watchId !== null) navigator.geolocation.clearWatch(this.watchId);
-    this.watchId = null; this.active = false;
+    this.watchId = null; this.active = false; this.err = '';
   }
   relearn() { this.fwd = null; this.learnSum = [0, 0, 0]; this.learnT = 0; this.autoFlipped = false; this.flipVotes = 0; }
   flip() { if (this.fwd) this.fwd = this.fwd.map(x => -x); }
@@ -933,9 +934,12 @@ document.querySelectorAll('input[name="mode"]').forEach(r => r.addEventListener(
   car.v = state.mode === 'pedals' ? 0 : car.v;
 }));
 $('sensBtn').addEventListener('click', async () => {
-  if (sensors.active) { sensors.stop(); $('sensBtn').textContent = 'Enable sensors'; return; }
-  await sensors.start();
-  $('sensBtn').textContent = 'Turn sensors off';
+  const b = $('sensBtn');
+  if (sensors.active) { sensors.stop(); b.textContent = 'Enable sensors'; return; }
+  b.disabled = true; b.textContent = 'Waiting for permission…';
+  try { await sensors.start(); } catch (e) { sensors.err = `Sensors couldn’t start: ${e && e.message ? e.message : e}`; }
+  b.disabled = false;
+  b.textContent = sensors.active ? 'Turn sensors off' : 'Enable sensors';
 });
 $('relearnBtn').addEventListener('click', () => sensors.relearn());
 $('flipBtn').addEventListener('click', () => sensors.flip());
@@ -972,7 +976,11 @@ function updateSensorUI(now) {
   $('rPerm').textContent = S.active ? S.permission : '–';
   $('rCtx').textContent = S.embedded ? 'Embedded frame' : 'Top-level page';
   let msg = '';
-  if (S.active && !S.gotMotion && now - S.startedAt > 2500) {
+  if (!S.active) {
+    msg = S.permission === 'Asking'
+      ? 'Waiting for you to allow motion access. Tap Allow in the prompt.'
+      : S.err || 'Sensors are off. Tap Enable sensors, then allow motion and location access when asked.';
+  } else if (!S.gotMotion && now - S.startedAt > 2500) {
     msg = S.embedded
       ? 'No motion data. This page is running inside an embedded frame, and current iOS drops motion events in frames even after you tap Allow. Open the page from its own HTTPS address to use the sensors.'
       : (S.err || 'No motion data is arriving. Reload the page, enable sensors again and tap Allow when asked.');
