@@ -4,7 +4,7 @@ A synthesized car engine in a single web page. The sound follows your speed. Dri
 
 There are no samples. Every sound is generated in real time by a small DSP engine in the browser.
 
-**Live:** https://gabdsg.github.io/engine-sound/ (once GitHub Pages is enabled, see [Deploying](#deploying))
+**Live:** https://gabdsg.com/engine-sound/ (once GitHub Pages is enabled, see [Deploying](#deploying))
 
 ## Features
 
@@ -67,7 +67,7 @@ The site is a static `index.html`, so any static host works.
 
 1. On a free GitHub plan, the repository must be **public** for Pages to work. Change this under *Settings → General → Danger Zone → Change visibility*.
 2. *Settings → Pages → Build and deployment*: set **Source** to *Deploy from a branch*, then choose branch `main` and folder `/ (root)`, and save.
-3. After a minute the site is live at `https://gabdsg.github.io/engine-sound/`. Every push to `main` redeploys it.
+3. After a minute the site is live at `https://gabdsg.com/engine-sound/`. It inherits the custom domain from the `gabdsg.github.io` user site, and `gabdsg.github.io/engine-sound/` redirects there. Every push to `main` redeploys it.
 
 ### Keeping the repo private
 
